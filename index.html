@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebRTC Cuộc gọi thoại - Hỗ trợ Di động</title>
+    <style>
+        /* Định dạng CSS thân thiện với thiết bị di động */
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            text-align: center;
+        }
+
+        h2 {
+            color: #333;
+        }
+
+        #startCall {
+            background-color: #4CAF50;
+            color: white;
+            padding: 15px 30px;
+            margin: 20px;
+            border: none;
+            font-size: 18px;
+            border-radius: 8px;
+        }
+
+        #startCall:hover {
+            background-color: #45a049;
+        }
+
+        audio {
+            width: 80%;
+            margin: 20px auto;
+        }
+
+        /* Responsive cho thiết bị di động */
+        @media (max-width: 600px) {
+            #startCall {
+                width: 100%;
+                padding: 10px 0;
+                font-size: 16px;
+            }
+
+            audio {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h2>Demo Cuộc gọi thoại với WebRTC - Di động</h2>
+    <button id="startCall">Bắt đầu cuộc gọi</button>
+    <audio id="remoteAudio" autoplay></audio>
+
+    <!-- Thêm thư viện socket.io client -->
+    <script src="/socket.io/socket.io.js"></script>
+
+    <script>
+        // Kết nối WebSocket tự động tới máy chủ hiện tại
+        const socket = io();
+
+        let localStream;
+        let peerConnection;
+        const servers = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
+
+        const remoteAudio = document.getElementById('remoteAudio');
+        const startCallButton = document.getElementById('startCall');
+
+        // Khi người dùng nhấn nút bắt đầu cuộc gọi
+        startCallButton.onclick = async () => {
+            // Truy cập microphone để lấy luồng âm thanh
+            localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            peerConnection = new RTCPeerConnection(servers);
+
+            // Thêm các track âm thanh vào peer connection
+            localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+
+            // Xử lý khi nhận được ICE candidate
+            peerConnection.onicecandidate = ({ candidate }) => {
+                if (candidate) socket.emit('candidate', candidate);
+            };
+
+            // Xử lý khi nhận luồng âm thanh từ người dùng khác
+            peerConnection.ontrack = ({ streams: [stream] }) => {
+                remoteAudio.srcObject = stream;
+            };
+
+            // Tạo và gửi offer đến máy ngang hàng
+            const offer = await peerConnection.createOffer();
+            await peerConnection.setLocalDescription(offer);
+            socket.emit('offer', offer);
+        };
+
+        // Khi nhận được offer từ máy ngang hàng khác
+        socket.on('offer', async (offer) => {
+            peerConnection = new RTCPeerConnection(servers);
+            peerConnection.onicecandidate = ({ candidate }) => {
+                if (candidate) socket.emit('candidate', candidate);
+            };
+
+            peerConnection.ontrack = ({ streams: [stream] }) => {
+                remoteAudio.srcObject = stream;
+            };
+
+            // Thiết lập remote offer và tạo answer
+            await peerConnection.setRemoteDescription(offer);
+            const answer = await peerConnection.createAnswer();
+            await peerConnection.setLocalDescription(answer);
+            socket.emit('answer', answer);
+        });
+
+        // Khi nhận được answer từ máy ngang hàng
+        socket.on('answer', (answer) => {
+            peerConnection.setRemoteDescription(answer);
+        });
+
+        // Khi nhận được ICE candidate từ máy ngang hàng
+        socket.on('candidate', (candidate) => {
+            peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+        });
+    </script>
+</body>
+</html>

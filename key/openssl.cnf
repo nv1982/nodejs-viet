@@ -1,0 +1,19 @@
+# OpenSSL configuration file.
+# Establish a home for this configuration file
+
+HOME = .
+
+# The default configuration section
+[req]
+default_bits       = 2048
+distinguished_name = req_distinguished_name
+prompt             = no
+
+[req_distinguished_name]
+C  = VN
+ST = HN
+L  = Hanoi
+O  = My Organization
+OU = My Organizational Unit
+CN = 192.168.1.96
+emailAddress =nguyenquocviet2018ca@gmail.com
